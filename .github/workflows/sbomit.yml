@@ -24,8 +24,10 @@ jobs:
 
       - name: Install witness
         run: |
-          curl -sSL https://raw.githubusercontent.com/in-toto/witness/main/install.sh | sh
+          curl -sSL https://github.com/in-toto/witness/releases/download/v0.11.0/witness_0.11.0_linux_amd64.tar.gz -o witness.tar.gz
+          tar -xzf witness.tar.gz
           sudo mv witness /usr/local/bin/witness
+          witness version
 
       - name: Generate ephemeral signing key
         run: |
