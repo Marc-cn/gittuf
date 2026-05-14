@@ -24,9 +24,18 @@ jobs:
 
       - name: Install witness
         run: |
-          curl -sSL https://github.com/in-toto/witness/releases/download/v0.11.0/witness_0.11.0_linux_amd64.tar.gz -o witness.tar.gz
-          tar -xzf witness.tar.gz
-          sudo mv witness /usr/local/bin/witness
+          # Check if project ships its own witness binary
+          if [ -f "./witness" ] && ./witness version 2>/dev/null | grep -q "ebpf\|eBPF\|bpf"; then
+            echo "Using project-provided witness binary with eBPF support"
+            sudo mv ./witness /usr/local/bin/witness
+          elif command -v witness &>/dev/null && witness version 2>/dev/null | grep -q "ebpf\|eBPF\|bpf"; then
+            echo "Using existing witness binary with eBPF support"
+          else
+            echo "Installing witness v0.11.0 from official release (ptrace only)"
+            curl -sSL https://github.com/in-toto/witness/releases/download/v0.11.0/witness_0.11.0_linux_amd64.tar.gz -o witness.tar.gz
+            tar -xzf witness.tar.gz
+            sudo mv witness /usr/local/bin/witness
+          fi
           witness version
 
       - name: Generate ephemeral signing key
@@ -36,8 +45,13 @@ jobs:
 
       - name: Attest build (ptrace + network-trace)
         run: |
+          # Use eBPF if supported, fall back to ptrace
+          TRACE_BACKEND=""
+          if witness run --help 2>&1 | grep -q "trace-backend"; then
+            TRACE_BACKEND="--trace-backend ebpf"
+          fi
           sudo witness run \
-            --trace \
+            --trace $TRACE_BACKEND \
             --attestations "environment,git,material,product,network-trace" \
             --signer-file-key-path signing.key \
             --outfile attestation.json \
