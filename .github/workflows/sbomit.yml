@@ -1,0 +1,77 @@
+name: SBOMit Attestation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  id-token: write  # needed for OIDC
+  contents: write
+
+jobs:
+  sbomit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install witness
+        run: |
+          curl -sSL https://raw.githubusercontent.com/in-toto/witness/main/install.sh | sh
+          sudo mv witness /usr/local/bin/witness
+
+      - name: Generate ephemeral signing key
+        run: |
+          openssl genpkey -algorithm ed25519 -out signing.key
+          openssl pkey -in signing.key -pubout -out signing.pub
+
+      - name: Attest build (ptrace + network-trace)
+        run: |
+          sudo witness run \
+            --trace \
+            --attestations "environment,git,material,product,network-trace" \
+            --signer-file-key-path signing.key \
+            --outfile attestation.json \
+            -- go build ./...
+
+      - name: Upload attestation + generate SBOM
+        run: |
+          mkdir -p sbom
+          curl -sSf -X POST "${{ vars.SBOMIT_SERVER }}/generate?name=gittuf-fork" \
+            -H "Authorization: Bearer ${{ secrets.SBOMIT_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data-binary @attestation.json \
+            -o sbom/sbom.spdx.json
+          echo "==> SBOM generated"
+          python3 -c "
+          import json, sys
+          d = json.load(open('sbom/sbom.spdx.json'))
+          pkgs = d.get('packages', [])
+          purls = [r.get('referenceLocator') for p in pkgs for r in p.get('externalRefs', []) if r.get('referenceType') == 'purl']
+          print(f'Packages: {len(pkgs)}  |  PURLs: {len(purls)}')
+          " || true
+
+      - name: Commit SBOM to repository
+        if: github.event_name == 'push'
+        run: |
+          git config user.name  "sbomit-bot"
+          git config user.email "sbomit-bot@users.noreply.github.com"
+          git add sbom/sbom.spdx.json
+          git diff --staged --quiet || git commit -m "chore: update SBOM [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom/sbom.spdx.json
+          retention-days: 90
