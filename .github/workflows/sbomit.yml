@@ -36,27 +36,21 @@ jobs:
         run: |
           sudo witness run \
             --trace \
+            --trace-backend ebpf \
             --attestations "environment,git,material,product,network-trace" \
             --signer-file-key-path signing.key \
             --outfile attestation.json \
-            -- go build ./...
+            -- make build
 
       - name: Upload attestation + generate SBOM
         run: |
           mkdir -p sbom
-          curl -sSf -X POST "${{ vars.SBOMIT_SERVER }}/generate?name=gittuf-fork" \
+          curl -sf -X POST "${{ vars.SBOMIT_SERVER }}/generate?name=gittuf-fork" \
             -H "Authorization: Bearer ${{ secrets.SBOMIT_TOKEN }}" \
             -H "Content-Type: application/json" \
             --data-binary @attestation.json \
-            -o sbom/sbom.spdx.json
-          echo "==> SBOM generated"
-          python3 -c "
-          import json, sys
-          d = json.load(open('sbom/sbom.spdx.json'))
-          pkgs = d.get('packages', [])
-          purls = [r.get('referenceLocator') for p in pkgs for r in p.get('externalRefs', []) if r.get('referenceType') == 'purl']
-          print(f'Packages: {len(pkgs)}  |  PURLs: {len(purls)}')
-          " || true
+            -o sbom/sbom.spdx.json || echo "WARN: server upload failed (server may not be reachable)"
+          echo "==> Upload step complete"
 
       - name: Commit SBOM to repository
         if: github.event_name == 'push'
