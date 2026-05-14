@@ -43,7 +43,7 @@ jobs:
           openssl genpkey -algorithm ed25519 -out signing.key
           openssl pkey -in signing.key -pubout -out signing.pub
 
-      - name: Attest build (ptrace + network-trace)
+      - name: Attest build with witness
         run: |
           # Use eBPF if supported, fall back to ptrace
           TRACE_BACKEND=""
@@ -51,6 +51,7 @@ jobs:
             TRACE_BACKEND="--trace-backend ebpf"
           fi
           sudo witness run \
+            --step build \
             --trace $TRACE_BACKEND \
             --attestations "environment,git" \
             --signer-file-key-path signing.key \
