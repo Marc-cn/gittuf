@@ -38,7 +38,6 @@ jobs:
         run: |
           sudo witness run \
             --trace \
-            --trace-backend ebpf \
             --attestations "environment,git,material,product,network-trace" \
             --signer-file-key-path signing.key \
             --outfile attestation.json \
