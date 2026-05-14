@@ -52,7 +52,7 @@ jobs:
           fi
           sudo witness run \
             --trace $TRACE_BACKEND \
-            --attestations "environment,git,material,product,network-trace" \
+            --attestations "environment,git" \
             --signer-file-key-path signing.key \
             --outfile attestation.json \
             -- make build
