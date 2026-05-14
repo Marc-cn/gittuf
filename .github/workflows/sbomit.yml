@@ -56,7 +56,7 @@ jobs:
             --attestations "environment,git" \
             --signer-file-key-path signing.key \
             --outfile attestation.json \
-            -- make build
+            -- make just-install
 
       - name: Upload attestation + generate SBOM
         run: |
