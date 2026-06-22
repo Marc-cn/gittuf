@@ -1,0 +1,11 @@
+name: SBOMit
+on:
+  push:
+  pull_request:
+  workflow_dispatch:   # lets you trigger manually from the Actions tab
+
+jobs:
+  sbomit:
+    uses: Marc-cn/sbomit-pipeline/.github/workflows/sbomit-reusable.yml@v2
+    with:
+      build_command: "make just-install"
